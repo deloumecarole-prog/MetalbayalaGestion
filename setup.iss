@@ -21,7 +21,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
-SetupIconFile=metalbayala\MetalBayalaGestion\Assets\app.ico
+SetupIconFile=publish\app.ico
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
