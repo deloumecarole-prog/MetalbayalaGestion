@@ -1,0 +1,49 @@
+<UserControl x:Class="MetalBayalaGestion.Views.PaymentsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Paiements" FontSize="24" FontWeight="Bold" Margin="8"/>
+
+        <ToolBarTray Grid.Row="1" Margin="8,0">
+            <ToolBar>
+                <Button Command="{Binding AddPaymentCommand}" ToolTip="Ajouter">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Plus" Margin="0,0,4,0"/>
+                        <TextBlock Text="Ajouter"/>
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding DeletePaymentCommand}" ToolTip="Supprimer">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Delete" Margin="0,0,4,0"/>
+                        <TextBlock Text="Supprimer"/>
+                    </StackPanel>
+                </Button>
+                <Separator/>
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="200" materialDesign:HintAssist.Hint="Rechercher..." Margin="8,0"/>
+                <Button Command="{Binding RefreshCommand}" ToolTip="Actualiser">
+                    <materialDesign:PackIcon Kind="Refresh"/>
+                </Button>
+            </ToolBar>
+        </ToolBarTray>
+
+        <DataGrid Grid.Row="2" Margin="8" ItemsSource="{Binding Payments}" SelectedItem="{Binding SelectedPayment}" 
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="N°" Binding="{Binding Number}" Width="Auto"/>
+                <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat='{}{0:dd/MM/yyyy}'}" Width="Auto"/>
+                <DataGridTextColumn Header="Client" Binding="{Binding Client.Name}" Width="*"/>
+                <DataGridTextColumn Header="Facture" Binding="{Binding Invoice.Number}" Width="Auto"/>
+                <DataGridTextColumn Header="Montant" Binding="{Binding Amount, StringFormat='{}{0:N0}'}" Width="Auto"/>
+                <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="Auto"/>
+                <DataGridTextColumn Header="Référence" Binding="{Binding Reference}" Width="Auto"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

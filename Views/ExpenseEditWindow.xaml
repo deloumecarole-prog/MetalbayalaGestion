@@ -1,0 +1,28 @@
+<Window x:Class="MetalBayalaGestion.Views.ExpenseEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Dépense" Height="450" Width="500" WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Text="Dépense" FontSize="20" FontWeight="Bold" Margin="0,0,0,16"/>
+        <StackPanel Grid.Row="1">
+            <DatePicker SelectedDate="{Binding Expense.Date}" materialDesign:HintAssist.Hint="Date" Margin="0,4"/>
+            <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding Expense.Category}" materialDesign:HintAssist.Hint="Catégorie" Margin="0,4"/>
+            <TextBox Text="{Binding Expense.Description}" materialDesign:HintAssist.Hint="Description *" Margin="0,4"/>
+            <TextBox Text="{Binding Expense.Amount}" materialDesign:HintAssist.Hint="Montant *" Margin="0,4"/>
+            <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding Expense.Mode}" materialDesign:HintAssist.Hint="Mode de paiement" Margin="0,4"/>
+            <ComboBox ItemsSource="{Binding Suppliers}" SelectedValuePath="Id" DisplayMemberPath="Name" 
+                      SelectedValue="{Binding Expense.SupplierId}" materialDesign:HintAssist.Hint="Fournisseur (optionnel)" Margin="0,4"/>
+            <TextBox Text="{Binding Expense.Notes}" materialDesign:HintAssist.Hint="Notes" Margin="0,4" TextWrapping="Wrap" AcceptsReturn="True" Height="60"/>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Enregistrer" Command="{Binding SaveCommand}" CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}" Margin="4" Style="{StaticResource MaterialDesignRaisedButton}"/>
+            <Button Content="Annuler" Command="{Binding CancelCommand}" CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}" Margin="4" Style="{StaticResource MaterialDesignFlatButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>
