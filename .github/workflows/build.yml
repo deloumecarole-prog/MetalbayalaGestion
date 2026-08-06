@@ -1,0 +1,49 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Find and Publish
+        shell: pwsh
+        run: |
+          Write-Host "Current directory: $(Get-Location)"
+          $proj = Get-ChildItem -Recurse -Filter "MetalBayalaGestion.csproj" | Select-Object -First 1
+          dotnet publish $proj.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false
+          $publishDir = Get-ChildItem -Recurse -Directory -Filter "publish" | Select-Object -First 1
+          Write-Host "Publish dir: $($publishDir.FullName)"
+          echo "PUBLISH_DIR=$($publishDir.FullName)" >> $env:GITHUB_ENV
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y
+
+      - name: Build Installer
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force "$env:PUBLISH_DIR" "publish"
+          iscc setup.iss
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MetalBayalaGestion-Setup
+          path: installer_output/*.exe
+
+      - name: Upload Portable Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: MetalBayalaGestion-Windows-Portable
+          path: '**/bin/Release/net8.0-windows/win-x64/publish'
