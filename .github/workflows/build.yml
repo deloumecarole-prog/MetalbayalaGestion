@@ -34,6 +34,16 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item -Recurse -Force "$env:PUBLISH_DIR" "publish"
+
+          $icon = Get-ChildItem -Recurse -Filter "app.ico" | Select-Object -First 1
+          if ($icon) {
+            Write-Host "Icon found: $($icon.FullName)"
+            Copy-Item -Force $icon.FullName "publish\app.ico"
+          } else {
+            Write-Error "app.ico introuvable dans le repo !"
+            exit 1
+          }
+
           iscc setup.iss
 
       - name: Upload Installer
