@@ -201,6 +201,15 @@ public partial class InvoicesViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task PrintDirect()
+    {
+        if (SelectedInvoice == null) return;
+        var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{SelectedInvoice.Number}.pdf");
+        await _pdfService.GenerateInvoicePdfAsync(SelectedInvoice, tempPath);
+        await _pdfService.PrintFileAsync(tempPath);
+    }
+
+    [RelayCommand]
     private async Task RecordPayment()
     {
         if (SelectedInvoice == null) return;
