@@ -120,6 +120,15 @@ public partial class DeliveryNotesViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task PrintDirect()
+    {
+        if (SelectedDeliveryNote == null) return;
+        var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{SelectedDeliveryNote.Number}.pdf");
+        await _pdfService.GenerateDeliveryNotePdfAsync(SelectedDeliveryNote, tempPath);
+        await _pdfService.PrintFileAsync(tempPath);
+    }
+
+    [RelayCommand]
     private void Refresh() => LoadDeliveryNotes();
 }
 
