@@ -211,23 +211,40 @@ public class PdfService : IPdfService
         double pageWidth = page.Width.Point;
         double contentWidth = pageWidth - 2 * margin;
 
-        // ---------- En-tete societe ----------
-        gfx.DrawString(company.Name.ToUpper(), fontHeader, XBrushes.Black, new XRect(margin, y, contentWidth, 18), XStringFormats.TopLeft);
+        // ---------- En-tete societe (avec logo) ----------
+        double logoSize = 45;
+        double textStartX = margin;
+        try
+        {
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+            if (File.Exists(logoPath))
+            {
+                using var logoImg = XImage.FromFile(logoPath);
+                double ratio = logoImg.PixelHeight > 0 ? (double)logoImg.PixelWidth / logoImg.PixelHeight : 1;
+                double logoW = logoSize * ratio;
+                gfx.DrawImage(logoImg, margin, y, logoW, logoSize);
+                textStartX = margin + logoW + 8;
+            }
+        }
+        catch { /* logo optionnel : on continue sans si le fichier est absent/illisible */ }
+
+        double textWidth = pageWidth - margin - textStartX;
+        gfx.DrawString(company.Name.ToUpper(), fontHeader, XBrushes.Black, new XRect(textStartX, y, textWidth, 18), XStringFormats.TopLeft);
         y += 16;
         if (!string.IsNullOrEmpty(company.Address))
         {
-            gfx.DrawString(company.Address, fontSmall, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+            gfx.DrawString(company.Address, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
             y += 10;
         }
         var contactLine = $"Tél: {company.Phone ?? ""}" + (string.IsNullOrEmpty(company.WhatsApp) ? "" : $"  WhatsApp: {company.WhatsApp}");
-        gfx.DrawString(contactLine, fontSmall, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+        gfx.DrawString(contactLine, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
         y += 10;
         if (!string.IsNullOrEmpty(company.Nif) || !string.IsNullOrEmpty(company.Rccm))
         {
-            gfx.DrawString($"NIF: {company.Nif ?? ""}  RCCM: {company.Rccm ?? ""}", fontSmall, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+            gfx.DrawString($"NIF: {company.Nif ?? ""}  RCCM: {company.Rccm ?? ""}", fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
             y += 10;
         }
-        y += 4;
+        y = Math.Max(y, margin + logoSize) + 4;
 
         // ---------- "DOIT:" + client ----------
         gfx.DrawString("DOIT:", fontLabel, XBrushes.Black, new XRect(margin, y, 40, 14), XStringFormats.TopLeft);
@@ -244,23 +261,21 @@ public class PdfService : IPdfService
         gfx.DrawString(badgeText, fontTitle, XBrushes.Black, badgeRect, XStringFormats.Center);
         y += 28;
 
-        // ---------- Tableau N / Date / Validite-Echeance ----------
-        double infoColWidth = contentWidth / 3;
+        // ---------- Tableau NUMERO / DATE / REFERENCE / HEURES (comme le modele papier) ----------
+        double infoColWidth = contentWidth / 4;
         double infoRowHeight = 14;
-        var validLabel = showPayment ? "Échéance" : "Validité";
-        var validValue = validUntil.HasValue ? validUntil.Value.ToString("dd/MM/yyyy") : "-";
 
-        var infoHeaders = new[] { "NUMÉRO", "DATE", validLabel.ToUpper() };
-        var infoValues = new[] { number, date.ToString("dd/MM/yyyy"), validValue };
+        var infoHeaders = new[] { "NUMÉRO", "DATE", "RÉFÉRENCE", "HEURES" };
+        var infoValues = new[] { number, date.ToString("dd/MM/yy"), "", date.ToString("HH:mm:ss") };
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
         {
             var cellRect = new XRect(margin + i * infoColWidth, y, infoColWidth, infoRowHeight);
             gfx.DrawRectangle(XPens.Black, cellRect);
             gfx.DrawString(infoHeaders[i], fontSmall, XBrushes.Black, cellRect, XStringFormats.Center);
         }
         y += infoRowHeight;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
         {
             var cellRect = new XRect(margin + i * infoColWidth, y, infoColWidth, infoRowHeight);
             gfx.DrawRectangle(XPens.Black, cellRect);
@@ -279,6 +294,12 @@ public class PdfService : IPdfService
         if (!string.IsNullOrEmpty(clientPhone))
         {
             gfx.DrawString($"Tél: {clientPhone}", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+            y += 11;
+        }
+        if (validUntil.HasValue)
+        {
+            var validLabel = showPayment ? "Échéance" : "Validité";
+            gfx.DrawString($"{validLabel}: {validUntil.Value:dd/MM/yyyy}", fontSmall, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
             y += 11;
         }
         y += 6;
@@ -318,7 +339,13 @@ public class PdfService : IPdfService
         // ---------- Montant en toutes lettres (comme le modele papier) ----------
         if (total > 0)
         {
-            gfx.DrawString("Arrêté la présente somme à (en FCFA):", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+            var docLabel = docType switch
+            {
+                "FACTURE" => "la présente facture",
+                "DEVIS" => "le présent devis",
+                _ => "le présent bon"
+            };
+            gfx.DrawString($"Arrêté {docLabel} à la somme de (en FCFA):", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
             y += 11;
             var fontItalic = new XFont("Arial", 8, XFontStyleEx.Italic);
             gfx.DrawString(NumberToWordsFr.ToWords(total), fontItalic, XBrushes.Black, new XRect(margin, y, contentWidth, 14), XStringFormats.TopLeft);
