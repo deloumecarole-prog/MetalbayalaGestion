@@ -29,7 +29,15 @@ public static class DbInitializer
 
         if (!context.Companies.Any())
         {
-            context.Companies.Add(new Company { Name = "Metal Bayala", Currency = "FCFA", CurrencyCode = "XOF" });
+            context.Companies.Add(new Company
+            {
+                Name = "Metal Bayala",
+                Address = "Route de Banankabougou terminus, BAMAKO / MALI",
+                Phone = "75 50 50 25 / 77 77 72 75 / 66 53 66 66",
+                Nif = "08613189E",
+                Currency = "FCFA",
+                CurrencyCode = "XOF"
+            });
             context.SaveChanges();
         }
 
