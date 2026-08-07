@@ -133,6 +133,15 @@ public partial class QuotesViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task PrintDirect()
+    {
+        if (SelectedQuote == null) return;
+        var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{SelectedQuote.Number}.pdf");
+        await _pdfService.GenerateQuotePdfAsync(SelectedQuote, tempPath);
+        await _pdfService.PrintFileAsync(tempPath);
+    }
+
+    [RelayCommand]
     private async Task ConvertToInvoice()
     {
         if (SelectedQuote == null) return;
