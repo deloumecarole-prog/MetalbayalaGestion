@@ -13,4 +13,7 @@ public interface IPdfService
     Task GenerateReportPdfAsync(DateTime startDate, DateTime endDate, decimal totalSales, decimal totalCashIn,
         decimal totalReceivables, decimal totalExpenses, decimal cashBalance,
         List<StockMovement> stockMovements, List<Product> lowStockProducts, string filePath);
+
+    // Envoie un PDF deja genere directement vers l'imprimante par defaut de Windows
+    Task PrintFileAsync(string filePath);
 }
