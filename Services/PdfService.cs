@@ -5,6 +5,7 @@ using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,6 +26,21 @@ public class PdfService : IPdfService
     public PdfService(AppDbContext context)
     {
         _context = context;
+    }
+
+    // Envoie un PDF deja genere directement vers l'imprimante par defaut de Windows,
+    // via le verbe "print" du shell (utilise le lecteur PDF installe : Edge, Adobe, etc.)
+    public Task PrintFileAsync(string filePath)
+    {
+        return Task.Run(() =>
+        {
+            var psi = new ProcessStartInfo(filePath)
+            {
+                UseShellExecute = true,
+                Verb = "print"
+            };
+            using var process = Process.Start(psi);
+        });
     }
 
     public async Task GenerateQuotePdfAsync(Quote quote, string filePath)
