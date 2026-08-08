@@ -104,4 +104,24 @@ public class NumberingService : INumberingService
             return $"{prefix}{next:D4}";
         }
     }
+
+    // Meme logique fiable que les autres numerotations (basee sur le dernier code
+    // trouve en base, pas sur un Count()) au lieu de la generation ad hoc qui
+    // provoquait des collisions "UNIQUE constraint failed: Clients.Code".
+    public async Task<string> GetNextClientCodeAsync()
+    {
+        lock (_lock)
+        {
+            var prefix = "CLI-";
+            var last = _context.Clients
+                .AsNoTracking()
+                .Where(c => c.Code.StartsWith(prefix))
+                .OrderByDescending(c => c.Code)
+                .FirstOrDefault();
+            int next = 1;
+            if (last != null && int.TryParse(last.Code.Replace(prefix, ""), out int lastNum))
+                next = lastNum + 1;
+            return $"{prefix}{next:D3}";
+        }
+    }
 }
