@@ -79,7 +79,7 @@ public partial class MainViewModel : ObservableObject
             "Devis" => new QuotesView { DataContext = new QuotesViewModel(_context, _dialogService, _numberingService, _pdfService) },
             "Factures" => new InvoicesView { DataContext = new InvoicesViewModel(_context, _dialogService, _numberingService, _pdfService, _currentUserService) },
             "Paiements" => new PaymentsView { DataContext = new PaymentsViewModel(_context, _dialogService, _numberingService) },
-            "Clients" => new ClientsView { DataContext = new ClientsViewModel(_context, _dialogService) },
+            "Clients" => new ClientsView { DataContext = new ClientsViewModel(_context, _dialogService, _numberingService) },
             "Produits" => new ProductsView { DataContext = new ProductsViewModel(_context, _dialogService) },
             "Catégories" => new CategoriesView { DataContext = new CategoriesViewModel(_context, _dialogService) },
             "Caisse" => new CashView { DataContext = new CashViewModel(_context, _dialogService) },
