@@ -22,6 +22,7 @@ public class NumberingService : INumberingService
             var year = DateTime.Now.Year;
             var prefix = $"DEV-{year}-";
             var last = _context.Quotes
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(q => q.Number.StartsWith(prefix))
                 .OrderByDescending(q => q.Number)
@@ -40,6 +41,7 @@ public class NumberingService : INumberingService
             var year = DateTime.Now.Year;
             var prefix = $"FAC-{year}-";
             var last = _context.Invoices
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(i => i.Number.StartsWith(prefix))
                 .OrderByDescending(i => i.Number)
@@ -108,12 +110,19 @@ public class NumberingService : INumberingService
     // Meme logique fiable que les autres numerotations (basee sur le dernier code
     // trouve en base, pas sur un Count()) au lieu de la generation ad hoc qui
     // provoquait des collisions "UNIQUE constraint failed: Clients.Code".
+    // IMPORTANT : IgnoreQueryFilters() est indispensable ici. AppDbContext applique
+    // un filtre global HasQueryFilter(c => !c.IsDeleted) sur Client, qui masque les
+    // clients supprimes dans TOUTE requete "normale". Mais l'index unique sur Code,
+    // lui, s'applique a TOUTES les lignes (supprimees ou non). Sans IgnoreQueryFilters,
+    // on ignore les codes deja pris par des clients supprimes et on les regenere,
+    // ce qui provoque la collision UNIQUE constraint contre la ligne encore en base.
     public async Task<string> GetNextClientCodeAsync()
     {
         lock (_lock)
         {
             var prefix = "CLI-";
             var last = _context.Clients
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(c => c.Code.StartsWith(prefix))
                 .OrderByDescending(c => c.Code)
