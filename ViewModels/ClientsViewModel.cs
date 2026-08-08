@@ -6,6 +6,7 @@ using MetalBayalaGestion.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace MetalBayalaGestion.ViewModels;
@@ -23,11 +24,13 @@ public partial class ClientsViewModel : ObservableObject
 
     private readonly AppDbContext _context;
     private readonly IDialogService _dialogService;
+    private readonly INumberingService _numberingService;
 
-    public ClientsViewModel(AppDbContext context, IDialogService dialogService)
+    public ClientsViewModel(AppDbContext context, IDialogService dialogService, INumberingService numberingService)
     {
         _context = context;
         _dialogService = dialogService;
+        _numberingService = numberingService;
         LoadClients();
     }
 
@@ -52,49 +55,16 @@ public partial class ClientsViewModel : ObservableObject
         foreach (var c in query.OrderBy(c => c.Name).ToList()) Clients.Add(c);
     }
 
-    // Genere le prochain code client a partir du plus grand numero deja
-    // utilise (tous clients confondus, supprimes inclus, pour ne jamais
-    // reutiliser un code deja pris). Un simple Count()+1 provoquait des
-    // collisions "UNIQUE constraint failed" des qu'il y avait un ecart
-    // entre le nombre de lignes et les codes reellement attribues
-    // (donnees de demo, suppressions, etc.).
-    private string GenerateNextClientCode()
-    {
-        var maxNumber = _context.Clients
-            .Select(c => c.Code)
-            .AsEnumerable()
-            .Select(code =>
-            {
-                if (string.IsNullOrEmpty(code) || !code.StartsWith("CLI-")) return 0;
-                return int.TryParse(code.Substring(4), out var n) ? n : 0;
-            })
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return $"CLI-{maxNumber + 1:D3}";
-    }
-
     [RelayCommand]
     private async Task AddClient()
     {
-        var vm = new ClientEditViewModel(new Client { Code = GenerateNextClientCode() }, _context);
+        var code = await _numberingService.GetNextClientCodeAsync();
+        var vm = new ClientEditViewModel(new Client { Code = code }, _context);
         var window = new Views.ClientEditWindow { DataContext = vm };
         if (window.ShowDialog() == true)
         {
             _context.Clients.Add(vm.Client);
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateException)
-            {
-                // Filet de securite en cas de collision malgre tout (ex. saisie manuelle
-                // d'un code deja pris) : on regenere un code et on retente une fois.
-                _context.Entry(vm.Client).State = EntityState.Detached;
-                vm.Client.Code = GenerateNextClientCode();
-                _context.Clients.Add(vm.Client);
-                await _context.SaveChangesAsync();
-            }
+            await _context.SaveChangesAsync();
             LoadClients();
         }
     }
