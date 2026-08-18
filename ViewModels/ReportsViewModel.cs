@@ -43,6 +43,27 @@ public partial class ReportsViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<Product> _lowStockProducts = new();
 
+    [ObservableProperty]
+    private ObservableCollection<Invoice> _unpaidInvoices = new();
+
+    [ObservableProperty]
+    private ObservableCollection<Expense> _expensesList = new();
+
+    [ObservableProperty]
+    private ObservableCollection<Payment> _paymentsList = new();
+
+    // Saisie manuelle du comptage physique de caisse (une fois par jour).
+    [ObservableProperty]
+    private decimal _cashCountInput;
+
+    // Ecart = caisse theorique (CashBalance, calculee depuis les transactions)
+    // moins le montant reellement compte, saisi dans CashCountInput.
+    [ObservableProperty]
+    private decimal _dailyGap;
+
+    [ObservableProperty]
+    private bool _hasCashCountToday;
+
     public ObservableCollection<string> Presets { get; } = new() { "Aujourd'hui", "Ce mois-ci", "Personnalisé" };
 
     private readonly AppDbContext _context;
@@ -59,6 +80,8 @@ public partial class ReportsViewModel : ObservableObject
     }
 
     partial void OnSelectedPresetChanged(string value) => ApplyPreset();
+
+    partial void OnCashCountInputChanged(decimal value) => UpdateDailyGap();
 
     private void ApplyPreset()
     {
@@ -108,6 +131,8 @@ public partial class ReportsViewModel : ObservableObject
             .AsEnumerable()
             .Sum(e => e.Amount);
 
+        // Caisse theorique : solde cumule depuis toujours (pas filtre par periode),
+        // c'est la caisse "actuelle" qu'on compare au comptage physique du jour.
         var totalIn = _context.CashTransactions.Where(t => t.Type == "Entrée" && !t.IsDeleted).AsEnumerable().Sum(t => t.Amount);
         var totalOut = _context.CashTransactions.Where(t => t.Type == "Sortie" && !t.IsDeleted).AsEnumerable().Sum(t => t.Amount);
         CashBalance = totalIn - totalOut;
@@ -128,6 +153,78 @@ public partial class ReportsViewModel : ObservableObject
             .OrderBy(p => p.StockQuantity)
             .ToList();
         foreach (var p in low) LowStockProducts.Add(p);
+
+        // Factures impayees : une ligne par facture, toutes dates confondues
+        // (une creance ne disparait pas parce qu'elle est hors periode).
+        UnpaidInvoices.Clear();
+        var unpaid = _context.Invoices
+            .Where(i => !i.IsDeleted && (i.Status == "Impayée" || i.Status == "Partiellement payée"))
+            .Include(i => i.Client)
+            .OrderByDescending(i => i.Date)
+            .ToList();
+        foreach (var i in unpaid) UnpaidInvoices.Add(i);
+
+        // Depenses de la periode
+        ExpensesList.Clear();
+        var expenses = _context.Expenses
+            .Where(e => e.Date >= start && e.Date <= end && !e.IsDeleted)
+            .Include(e => e.Supplier)
+            .OrderByDescending(e => e.Date)
+            .ToList();
+        foreach (var e in expenses) ExpensesList.Add(e);
+
+        // Journal des reglements (paiements) de la periode
+        PaymentsList.Clear();
+        var payments = _context.Payments
+            .Where(p => p.Date >= start && p.Date <= end && !p.IsDeleted)
+            .Include(p => p.Client)
+            .OrderByDescending(p => p.Date)
+            .ToList();
+        foreach (var p in payments) PaymentsList.Add(p);
+
+        LoadTodayCashCount();
+    }
+
+    // Precharge le comptage du jour s'il a deja ete saisi, pour ne pas ecraser
+    // une saisie existante en rouvrant l'onglet Rapports.
+    private void LoadTodayCashCount()
+    {
+        var today = DateTime.Now.Date;
+        var existing = _context.DailyCashCounts.FirstOrDefault(c => c.Date == today);
+        if (existing != null)
+        {
+            CashCountInput = existing.CountedAmount;
+            HasCashCountToday = true;
+        }
+        else
+        {
+            HasCashCountToday = false;
+        }
+        UpdateDailyGap();
+    }
+
+    private void UpdateDailyGap()
+    {
+        DailyGap = CashBalance - CashCountInput;
+    }
+
+    [RelayCommand]
+    private async Task SaveCashCount()
+    {
+        var today = DateTime.Now.Date;
+        var existing = _context.DailyCashCounts.FirstOrDefault(c => c.Date == today);
+        if (existing != null)
+        {
+            existing.CountedAmount = CashCountInput;
+        }
+        else
+        {
+            _context.DailyCashCounts.Add(new DailyCashCount { Date = today, CountedAmount = CashCountInput });
+        }
+        await _context.SaveChangesAsync();
+        HasCashCountToday = true;
+        UpdateDailyGap();
+        await _dialogService.ShowInfoAsync("Succès", "Comptage de caisse enregistré.");
     }
 
     [RelayCommand]
