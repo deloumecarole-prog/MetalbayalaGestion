@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -51,13 +52,64 @@
             </md:Card>
             <md:Card Padding="15" Margin="5" Background="#e8f5e9">
                 <StackPanel>
-                    <TextBlock Text="Solde caisse" Opacity="0.7" FontSize="12"/>
+                    <TextBlock Text="Caisse nette (théorique)" Opacity="0.7" FontSize="12"/>
                     <TextBlock Text="{Binding CashBalance, StringFormat=N0}" FontSize="20" FontWeight="Bold"/>
+                </StackPanel>
+            </md:Card>
+            <md:Card Padding="15" Margin="5" Background="#fff9c4">
+                <StackPanel>
+                    <TextBlock Text="Écart du jour" Opacity="0.7" FontSize="12"/>
+                    <TextBlock Text="{Binding DailyGap, StringFormat=N0}" FontSize="20" FontWeight="Bold"/>
                 </StackPanel>
             </md:Card>
         </UniformGrid>
 
-        <TabControl Grid.Row="3" Style="{StaticResource MaterialDesignTabControl}">
+        <md:Card Grid.Row="3" Padding="15" Margin="0,0,0,15">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Comptage caisse du jour :" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                <TextBox Text="{Binding CashCountInput, UpdateSourceTrigger=PropertyChanged}" md:HintAssist.Hint="Montant compté" Width="180" Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,10,0"/>
+                <Button Content="Enregistrer le comptage" Command="{Binding SaveCashCountCommand}" Style="{StaticResource MaterialDesignRaisedButton}"/>
+            </StackPanel>
+        </md:Card>
+
+        <TabControl Grid.Row="4" Style="{StaticResource MaterialDesignTabControl}">
+            <TabItem Header="Factures impayées">
+                <DataGrid ItemsSource="{Binding UnpaidInvoices}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Style="{StaticResource MaterialDesignDataGrid}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="N° pièce" Binding="{Binding Number}" Width="130"/>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                        <DataGridTextColumn Header="Client" Binding="{Binding Client.Name}" Width="220"/>
+                        <DataGridTextColumn Header="Montant origine" Binding="{Binding Total, StringFormat=N0}" Width="130"/>
+                        <DataGridTextColumn Header="Acompte" Binding="{Binding PaidAmount, StringFormat=N0}" Width="120"/>
+                        <DataGridTextColumn Header="Montant restant" Binding="{Binding Balance, StringFormat=N0}" Width="130"/>
+                        <DataGridTextColumn Header="Statut" Binding="{Binding Status}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Dépenses">
+                <DataGrid ItemsSource="{Binding ExpensesList}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Style="{StaticResource MaterialDesignDataGrid}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                        <DataGridTextColumn Header="Catégorie" Binding="{Binding Category}" Width="150"/>
+                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="Fournisseur" Binding="{Binding Supplier.Name}" Width="180"/>
+                        <DataGridTextColumn Header="Montant" Binding="{Binding Amount, StringFormat=N0}" Width="120"/>
+                        <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Journal des règlements">
+                <DataGrid ItemsSource="{Binding PaymentsList}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Style="{StaticResource MaterialDesignDataGrid}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="N° pièce" Binding="{Binding Number}" Width="130"/>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                        <DataGridTextColumn Header="Client" Binding="{Binding Client.Name}" Width="220"/>
+                        <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="150"/>
+                        <DataGridTextColumn Header="Référence" Binding="{Binding Reference}" Width="150"/>
+                        <DataGridTextColumn Header="Montant" Binding="{Binding Amount, StringFormat=N0}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
             <TabItem Header="Mouvements de stock">
                 <DataGrid ItemsSource="{Binding StockMovements}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Style="{StaticResource MaterialDesignDataGrid}">
                     <DataGrid.Columns>
