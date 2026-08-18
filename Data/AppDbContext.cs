@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses { get; set; }
     public DbSet<CashTransaction> CashTransactions { get; set; }
     public DbSet<Setting> Settings { get; set; }
+    public DbSet<DailyCashCount> DailyCashCounts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +48,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<DeliveryNote>().HasIndex(d => d.Number).IsUnique();
         modelBuilder.Entity<Payment>().HasIndex(p => p.Number).IsUnique();
         modelBuilder.Entity<Setting>().HasIndex(s => s.Key).IsUnique();
+        modelBuilder.Entity<DailyCashCount>().HasIndex(d => d.Date).IsUnique();
 
         modelBuilder.Entity<Company>().HasData(new Company { Id = 1, Name = "Metal Bayala" });
         // NB: le seed de l'utilisateur "admin" est géré uniquement par DbInitializer (avec un vrai hash PBKDF2).
