@@ -97,15 +97,15 @@ public class PdfService : IPdfService
             var fontRegular = new XFont("Arial", 9, XFontStyleEx.Regular);
             var fontBold = new XFont("Arial", 9, XFontStyleEx.Bold);
             var fontTitle = new XFont("Arial", 16, XFontStyleEx.Bold);
-            var fontHeader = new XFont("Arial", 11, XFontStyleEx.Bold);
 
             double margin = 25;
             double y = margin;
             double pageWidth = page.Width.Point;
+            double pageHeight = page.Height.Point;
             double contentWidth = pageWidth - 2 * margin;
 
-            gfx.DrawString(company.Name.ToUpper(), fontHeader, XBrushes.Black, new XRect(margin, y, contentWidth, 20), XStringFormats.TopLeft);
-            y += 15;
+            y = DrawCompanyHeader(gfx, company, margin, pageWidth, y);
+            y += 6;
             gfx.DrawString($"RAPPORT D'ACTIVITÉ", fontTitle, XBrushes.Black, new XRect(margin, y, contentWidth, 25), XStringFormats.TopCenter);
             y += 20;
             gfx.DrawString($"Période : {startDate:dd/MM/yyyy} au {endDate:dd/MM/yyyy}", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 15), XStringFormats.TopCenter);
@@ -167,6 +167,96 @@ public class PdfService : IPdfService
                 y += 12;
             }
 
+            var docRef = $"RAP-{startDate:yyyyMMdd}-{endDate:yyyyMMdd}";
+            DrawFooterStamp(gfx, docRef, margin, pageWidth, pageHeight);
+
+            document.Save(filePath);
+        });
+    }
+
+    // Rapport de cloture de caisse : caisse theorique, montant compte, ecart,
+    // avec zone de signature "Caissier" / "Responsable" pour formaliser le
+    // controle de caisse quotidien (remplace le pointage papier manuel).
+    public async Task GenerateCashClosingPdfAsync(DateTime date, decimal theoretical, decimal counted, decimal gap, string filePath)
+    {
+        await Task.Run(() =>
+        {
+            var company = _context.Companies.FirstOrDefault() ?? new Company();
+            var document = new PdfDocument();
+            document.Info.Title = $"Clôture de caisse {date:dd/MM/yyyy}";
+            document.Info.Author = company.Name;
+
+            var page = document.AddPage();
+            page.Width = XUnit.FromMillimeter(148); // A5
+            page.Height = XUnit.FromMillimeter(210);
+            var gfx = XGraphics.FromPdfPage(page);
+
+            var fontRegular = new XFont("Arial", 9, XFontStyleEx.Regular);
+            var fontBold = new XFont("Arial", 9, XFontStyleEx.Bold);
+            var fontTitle = new XFont("Arial", 13, XFontStyleEx.Bold);
+            var fontLabel = new XFont("Arial", 9, XFontStyleEx.Bold);
+
+            double margin = 15;
+            double y = margin;
+            double pageWidth = page.Width.Point;
+            double pageHeight = page.Height.Point;
+            double contentWidth = pageWidth - 2 * margin;
+
+            y = DrawCompanyHeader(gfx, company, margin, pageWidth, y);
+            y += 6;
+
+            var badgeText = "CLÔTURE DE CAISSE";
+            var badgeWidth = gfx.MeasureString(badgeText, fontTitle).Width + 20;
+            var badgeRect = new XRect(margin, y, badgeWidth, 20);
+            gfx.DrawRoundedRectangle(XPens.Black, XBrushes.White, badgeRect, new XSize(8, 8));
+            gfx.DrawString(badgeText, fontTitle, XBrushes.Black, badgeRect, XStringFormats.Center);
+            y += 30;
+
+            gfx.DrawString($"Date : {date:dd/MM/yyyy}", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 14), XStringFormats.TopLeft);
+            y += 25;
+
+            double totalsBoxWidth = contentWidth;
+            double totalsLabelWidth = totalsBoxWidth - 100;
+            double totalsRowHeight = 20;
+
+            void DrawRow(string label, decimal value, bool bold, XBrush? valueBrush = null)
+            {
+                var f = bold ? fontBold : fontRegular;
+                var labelRect = new XRect(margin, y, totalsLabelWidth, totalsRowHeight);
+                var valueRect = new XRect(margin + totalsLabelWidth, y, totalsBoxWidth - totalsLabelWidth, totalsRowHeight);
+                gfx.DrawRectangle(XPens.Black, labelRect);
+                gfx.DrawRectangle(XPens.Black, valueRect);
+                gfx.DrawString(label, f, XBrushes.Black, labelRect, XStringFormats.CenterLeft);
+                gfx.DrawString(value.ToString("N0") + " FCFA", f, valueBrush ?? XBrushes.Black, valueRect, XStringFormats.CenterRight);
+                y += totalsRowHeight;
+            }
+
+            DrawRow("Caisse théorique (calculée)", theoretical, false);
+            DrawRow("Caisse comptée (physique)", counted, false);
+            DrawRow("Écart", gap, true, gap == 0 ? XBrushes.DarkGreen : XBrushes.DarkRed);
+            y += 20;
+
+            if (gap != 0)
+            {
+                var gapLabel = gap > 0 ? "Manquant en caisse" : "Excédent en caisse";
+                gfx.DrawString($"({gapLabel} : {Math.Abs(gap):N0} FCFA)", fontRegular, gap > 0 ? XBrushes.DarkRed : XBrushes.DarkGreen,
+                    new XRect(margin, y, contentWidth, 14), XStringFormats.TopLeft);
+                y += 25;
+            }
+
+            // ---------- Signatures ----------
+            double signatureY = pageHeight - margin - 55;
+            if (signatureY > y) y = signatureY;
+
+            gfx.DrawString("Caissier", fontLabel, XBrushes.Black, new XRect(margin, y, contentWidth / 2, 14), XStringFormats.TopLeft);
+            gfx.DrawString("Responsable", fontLabel, XBrushes.Black, new XRect(margin + contentWidth / 2, y, contentWidth / 2, 14), XStringFormats.TopRight);
+            y += 14;
+            gfx.DrawLine(XPens.Black, margin, y, margin + 90, y);
+            gfx.DrawLine(XPens.Black, margin + contentWidth - 90, y, margin + contentWidth, y);
+
+            var docRef = $"CLOT-{date:yyyyMMdd}";
+            DrawFooterStamp(gfx, docRef, margin, pageWidth, pageHeight);
+
             document.Save(filePath);
         });
     }
@@ -180,6 +270,60 @@ public class PdfService : IPdfService
         public decimal Price { get; set; }
         public decimal Discount { get; set; }
         public decimal Total { get; set; }
+    }
+
+    // En-tete societe reutilisable (logo + nom + adresse + contact + NIF/RCCM),
+    // utilise sur tous les documents (devis/factures/BL, rapports, cloture de caisse)
+    // pour un rendu uniforme et professionnel. Retourne la position Y apres l'en-tete.
+    private double DrawCompanyHeader(XGraphics gfx, Company company, double margin, double pageWidth, double y, double logoSize = 45)
+    {
+        var fontHeader = new XFont("Arial", 12, XFontStyleEx.Bold);
+        var fontSmall = new XFont("Arial", 7, XFontStyleEx.Regular);
+        double startY = y;
+        double textStartX = margin;
+        try
+        {
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+            if (File.Exists(logoPath))
+            {
+                using var logoImg = XImage.FromFile(logoPath);
+                double ratio = logoImg.PixelHeight > 0 ? (double)logoImg.PixelWidth / logoImg.PixelHeight : 1;
+                double logoW = logoSize * ratio;
+                gfx.DrawImage(logoImg, margin, y, logoW, logoSize);
+                textStartX = margin + logoW + 8;
+            }
+        }
+        catch { /* logo optionnel : on continue sans si le fichier est absent/illisible */ }
+
+        double textWidth = pageWidth - margin - textStartX;
+        gfx.DrawString(company.Name.ToUpper(), fontHeader, XBrushes.Black, new XRect(textStartX, y, textWidth, 18), XStringFormats.TopLeft);
+        y += 16;
+        if (!string.IsNullOrEmpty(company.Address))
+        {
+            gfx.DrawString(company.Address, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
+            y += 10;
+        }
+        var contactLine = $"Tél: {company.Phone ?? ""}" + (string.IsNullOrEmpty(company.WhatsApp) ? "" : $"  WhatsApp: {company.WhatsApp}");
+        gfx.DrawString(contactLine, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
+        y += 10;
+        if (!string.IsNullOrEmpty(company.Nif) || !string.IsNullOrEmpty(company.Rccm))
+        {
+            gfx.DrawString($"NIF: {company.Nif ?? ""}  RCCM: {company.Rccm ?? ""}", fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
+            y += 10;
+        }
+        return Math.Max(y, startY + logoSize) + 4;
+    }
+
+    // Pied de page uniforme "reference document + date/heure de generation", pour
+    // donner un caractere officiel/archivable a chaque rapport imprime (le meme
+    // rapport regenere plus tard porte un tampon different, ce qui aide a tracer
+    // quelle version a ete remise a qui).
+    private void DrawFooterStamp(XGraphics gfx, string docRef, double margin, double pageWidth, double pageHeight)
+    {
+        var fontSmall = new XFont("Arial", 7, XFontStyleEx.Regular);
+        double footerY = pageHeight - margin - 12;
+        gfx.DrawString($"{docRef}  •  Généré le {DateTime.Now:dd/MM/yyyy HH:mm}", fontSmall, XBrushes.Gray,
+            new XRect(margin, footerY, pageWidth - 2 * margin, 12), XStringFormats.TopLeft);
     }
 
     // Genere un document A5 (devis / facture / bon de livraison) dont la mise en page
@@ -212,39 +356,7 @@ public class PdfService : IPdfService
         double contentWidth = pageWidth - 2 * margin;
 
         // ---------- En-tete societe (avec logo) ----------
-        double logoSize = 45;
-        double textStartX = margin;
-        try
-        {
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-            if (File.Exists(logoPath))
-            {
-                using var logoImg = XImage.FromFile(logoPath);
-                double ratio = logoImg.PixelHeight > 0 ? (double)logoImg.PixelWidth / logoImg.PixelHeight : 1;
-                double logoW = logoSize * ratio;
-                gfx.DrawImage(logoImg, margin, y, logoW, logoSize);
-                textStartX = margin + logoW + 8;
-            }
-        }
-        catch { /* logo optionnel : on continue sans si le fichier est absent/illisible */ }
-
-        double textWidth = pageWidth - margin - textStartX;
-        gfx.DrawString(company.Name.ToUpper(), fontHeader, XBrushes.Black, new XRect(textStartX, y, textWidth, 18), XStringFormats.TopLeft);
-        y += 16;
-        if (!string.IsNullOrEmpty(company.Address))
-        {
-            gfx.DrawString(company.Address, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
-            y += 10;
-        }
-        var contactLine = $"Tél: {company.Phone ?? ""}" + (string.IsNullOrEmpty(company.WhatsApp) ? "" : $"  WhatsApp: {company.WhatsApp}");
-        gfx.DrawString(contactLine, fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
-        y += 10;
-        if (!string.IsNullOrEmpty(company.Nif) || !string.IsNullOrEmpty(company.Rccm))
-        {
-            gfx.DrawString($"NIF: {company.Nif ?? ""}  RCCM: {company.Rccm ?? ""}", fontSmall, XBrushes.Black, new XRect(textStartX, y, textWidth, 12), XStringFormats.TopLeft);
-            y += 10;
-        }
-        y = Math.Max(y, margin + logoSize) + 4;
+        y = DrawCompanyHeader(gfx, company, margin, pageWidth, y);
 
         // ---------- "DOIT:" + client ----------
         gfx.DrawString("DOIT:", fontLabel, XBrushes.Black, new XRect(margin, y, 40, 14), XStringFormats.TopLeft);
