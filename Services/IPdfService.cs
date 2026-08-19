@@ -14,6 +14,10 @@ public interface IPdfService
         decimal totalReceivables, decimal totalExpenses, decimal cashBalance,
         List<StockMovement> stockMovements, List<Product> lowStockProducts, string filePath);
 
+    // Rapport de cloture de caisse (caisse theorique / comptee / ecart) avec
+    // zone de signature, pour formaliser le controle de caisse quotidien.
+    Task GenerateCashClosingPdfAsync(DateTime date, decimal theoretical, decimal counted, decimal gap, string filePath);
+
     // Envoie un PDF deja genere directement vers l'imprimante par defaut de Windows
     Task PrintFileAsync(string filePath);
 }
