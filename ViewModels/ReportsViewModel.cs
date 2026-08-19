@@ -237,4 +237,16 @@ public partial class ReportsViewModel : ObservableObject
             await _dialogService.ShowInfoAsync("Succès", "Rapport PDF généré avec succès.");
         }
     }
+
+    [RelayCommand]
+    private async Task PrintCashClosing()
+    {
+        var today = DateTime.Now.Date;
+        var path = await _dialogService.ShowSaveFileDialogAsync("Exporter clôture de caisse PDF", "PDF|*.pdf", $"Cloture_{today:yyyyMMdd}.pdf");
+        if (path != null)
+        {
+            await _pdfService.GenerateCashClosingPdfAsync(today, CashBalance, CashCountInput, DailyGap, path);
+            await _dialogService.ShowInfoAsync("Succès", "Clôture de caisse PDF générée avec succès.");
+        }
+    }
 }
