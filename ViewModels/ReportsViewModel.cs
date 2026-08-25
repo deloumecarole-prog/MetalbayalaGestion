@@ -233,7 +233,10 @@ public partial class ReportsViewModel : ObservableObject
         var path = await _dialogService.ShowSaveFileDialogAsync("Exporter rapport PDF", "PDF|*.pdf", $"Rapport_{StartDate:yyyyMMdd}_{EndDate:yyyyMMdd}.pdf");
         if (path != null)
         {
-            await _pdfService.GenerateReportPdfAsync(StartDate, EndDate, TotalSales, TotalCashIn, TotalReceivables, TotalExpenses, CashBalance, StockMovements.ToList(), LowStockProducts.ToList(), path);
+            await _pdfService.GenerateReportPdfAsync(StartDate, EndDate, TotalSales, TotalCashIn, TotalReceivables, TotalExpenses, CashBalance,
+                StockMovements.ToList(), LowStockProducts.ToList(),
+                UnpaidInvoices.ToList(), ExpensesList.ToList(), PaymentsList.ToList(),
+                CashCountInput, DailyGap, path);
             await _dialogService.ShowInfoAsync("Succès", "Rapport PDF généré avec succès.");
         }
     }
