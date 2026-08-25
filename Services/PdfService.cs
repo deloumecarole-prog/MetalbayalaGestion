@@ -81,7 +81,9 @@ public class PdfService : IPdfService
 
     public async Task GenerateReportPdfAsync(DateTime startDate, DateTime endDate, decimal totalSales, decimal totalCashIn,
         decimal totalReceivables, decimal totalExpenses, decimal cashBalance,
-        List<StockMovement> stockMovements, List<Product> lowStockProducts, string filePath)
+        List<StockMovement> stockMovements, List<Product> lowStockProducts,
+        List<Invoice> unpaidInvoices, List<Expense> expenses, List<Payment> payments,
+        decimal cashCounted, decimal dailyGap, string filePath)
     {
         await Task.Run(() =>
         {
@@ -90,85 +92,199 @@ public class PdfService : IPdfService
             document.Info.Title = $"Rapport {startDate:dd/MM/yyyy} - {endDate:dd/MM/yyyy}";
             document.Info.Author = company.Name;
 
-            var page = document.AddPage();
-            page.Width = XUnit.FromMillimeter(210); // A4
-            page.Height = XUnit.FromMillimeter(297);
-            var gfx = XGraphics.FromPdfPage(page);
-            var fontRegular = new XFont("Arial", 9, XFontStyleEx.Regular);
-            var fontBold = new XFont("Arial", 9, XFontStyleEx.Bold);
-            var fontTitle = new XFont("Arial", 16, XFontStyleEx.Bold);
+            var fontRegular = new XFont("Arial", 8, XFontStyleEx.Regular);
+            var fontBold = new XFont("Arial", 8, XFontStyleEx.Bold);
+            var fontSection = new XFont("Arial", 11, XFontStyleEx.Bold);
 
             double margin = 25;
-            double y = margin;
-            double pageWidth = page.Width.Point;
-            double pageHeight = page.Height.Point;
-            double contentWidth = pageWidth - 2 * margin;
+            double pageWidth = 0, pageHeight = 0, contentWidth = 0, y = 0;
+            PdfPage page = null!;
+            XGraphics gfx = null!;
+            int pageNumber = 0;
+            var docRef = $"RAP-{startDate:yyyyMMdd}-{endDate:yyyyMMdd}";
+
+            var fontKpiValue = new XFont("Arial", 30, XFontStyleEx.Bold);
+            var fontKpiLabel = new XFont("Arial", 11, XFontStyleEx.Regular);
+            var fontBigTitle = new XFont("Arial", 24, XFontStyleEx.Bold);
+
+            // Cree une nouvelle page, tamponne la precedente (numero de page inclus)
+            // avant de basculer dessus. Sans cette gestion de pagination, un rapport
+            // avec beaucoup de lignes (factures impayees, depenses, etc.) coupait
+            // simplement en bas de la premiere page et le reste disparaissait.
+            // "landscape" ne s'applique qu'a la premiere page de couverture (chiffres
+            // cles en gros) ; toutes les pages de detail qui suivent restent en portrait.
+            void NewPage(bool landscape = false)
+            {
+                if (page != null)
+                    DrawFooterStamp(gfx, $"{docRef}  •  Page {pageNumber}", margin, pageWidth, pageHeight);
+
+                page = document.AddPage();
+                page.Width = XUnit.FromMillimeter(landscape ? 297 : 210);
+                page.Height = XUnit.FromMillimeter(landscape ? 210 : 297);
+                gfx = XGraphics.FromPdfPage(page);
+                pageWidth = page.Width.Point;
+                pageHeight = page.Height.Point;
+                contentWidth = pageWidth - 2 * margin;
+                pageNumber++;
+                y = margin;
+            }
+
+            // Passe a la page suivante (portrait) si l'espace restant est insuffisant
+            // pour "needed" points de hauteur (garde toujours de la place pour le pied de page).
+            bool EnsureSpace(double needed)
+            {
+                if (y + needed > pageHeight - margin - 20)
+                {
+                    NewPage();
+                    return true;
+                }
+                return false;
+            }
+
+            // ---------- Page de couverture (paysage, chiffres cles en gros) ----------
+            NewPage(landscape: true);
 
             y = DrawCompanyHeader(gfx, company, margin, pageWidth, y);
-            y += 6;
-            gfx.DrawString($"RAPPORT D'ACTIVITÉ", fontTitle, XBrushes.Black, new XRect(margin, y, contentWidth, 25), XStringFormats.TopCenter);
-            y += 20;
-            gfx.DrawString($"Période : {startDate:dd/MM/yyyy} au {endDate:dd/MM/yyyy}", fontRegular, XBrushes.Black, new XRect(margin, y, contentWidth, 15), XStringFormats.TopCenter);
-            y += 25;
+            y += 10;
+            gfx.DrawString("RAPPORT D'ACTIVITÉ", fontBigTitle, XBrushes.Black, new XRect(margin, y, contentWidth, 32), XStringFormats.TopCenter);
+            y += 30;
+            gfx.DrawString($"Période : {startDate:dd/MM/yyyy} au {endDate:dd/MM/yyyy}", fontKpiLabel, XBrushes.Black, new XRect(margin, y, contentWidth, 16), XStringFormats.TopCenter);
+            y += 35;
 
-            double col1 = margin;
-            double col2 = margin + contentWidth / 2;
-            gfx.DrawString($"Total ventes : {totalSales:N0} FCFA", fontBold, XBrushes.Black, new XRect(col1, y, contentWidth / 2, 15), XStringFormats.TopLeft);
-            gfx.DrawString($"Total encaissé : {totalCashIn:N0} FCFA", fontBold, XBrushes.Black, new XRect(col2, y, contentWidth / 2, 15), XStringFormats.TopLeft);
-            y += 15;
-            gfx.DrawString($"Créances : {totalReceivables:N0} FCFA", fontBold, XBrushes.DarkRed, new XRect(col1, y, contentWidth / 2, 15), XStringFormats.TopLeft);
-            gfx.DrawString($"Dépenses : {totalExpenses:N0} FCFA", fontBold, XBrushes.Black, new XRect(col2, y, contentWidth / 2, 15), XStringFormats.TopLeft);
-            y += 15;
-            gfx.DrawString($"Solde caisse : {cashBalance:N0} FCFA", fontBold, XBrushes.DarkGreen, new XRect(col1, y, contentWidth / 2, 15), XStringFormats.TopLeft);
-            y += 25;
-
-            gfx.DrawString("MOUVEMENTS DE STOCK", fontBold, XBrushes.Black, new XRect(margin, y, contentWidth, 15), XStringFormats.TopLeft);
-            y += 15;
-            gfx.DrawLine(XPens.Black, margin, y, pageWidth - margin, y);
-            y += 5;
-            gfx.DrawString("Date", fontBold, XBrushes.Black, new XRect(margin, y, 80, 15), XStringFormats.TopLeft);
-            gfx.DrawString("Produit", fontBold, XBrushes.Black, new XRect(margin + 80, y, 180, 15), XStringFormats.TopLeft);
-            gfx.DrawString("Type", fontBold, XBrushes.Black, new XRect(margin + 260, y, 60, 15), XStringFormats.TopLeft);
-            gfx.DrawString("Qté", fontBold, XBrushes.Black, new XRect(margin + 320, y, 60, 15), XStringFormats.TopRight);
-            gfx.DrawString("Référence", fontBold, XBrushes.Black, new XRect(margin + 380, y, 120, 15), XStringFormats.TopLeft);
-            y += 12;
-            gfx.DrawLine(XPens.Gray, margin, y, pageWidth - margin, y);
-            y += 5;
-
-            foreach (var m in stockMovements)
+            var kpis = new (string Label, decimal Value, XBrush Brush)[]
             {
-                gfx.DrawString(m.CreatedAt.ToString("dd/MM/yy HH:mm"), fontRegular, XBrushes.Black, new XRect(margin, y, 80, 15), XStringFormats.TopLeft);
-                gfx.DrawString(m.Product?.Designation ?? "", fontRegular, XBrushes.Black, new XRect(margin + 80, y, 180, 15), XStringFormats.TopLeft);
-                gfx.DrawString(m.Type, fontRegular, XBrushes.Black, new XRect(margin + 260, y, 60, 15), XStringFormats.TopLeft);
-                gfx.DrawString(m.Quantity.ToString("0.##"), fontRegular, XBrushes.Black, new XRect(margin + 320, y, 60, 15), XStringFormats.TopRight);
-                gfx.DrawString(m.Reference ?? "", fontRegular, XBrushes.Black, new XRect(margin + 380, y, 120, 15), XStringFormats.TopLeft);
-                y += 12;
+                ("CHIFFRE D'AFFAIRES", totalSales, XBrushes.Black),
+                ("TOTAL ENCAISSÉ", totalCashIn, XBrushes.Black),
+                ("CRÉANCES", totalReceivables, XBrushes.DarkRed),
+                ("DÉPENSES", totalExpenses, XBrushes.Black),
+                ("CAISSE NETTE (THÉORIQUE)", cashBalance, XBrushes.DarkGreen),
+                ("CAISSE COMPTÉE (JOUR)", cashCounted, XBrushes.Black),
+                ("ÉCART DU JOUR", dailyGap, dailyGap == 0 ? XBrushes.DarkGreen : XBrushes.DarkRed),
+            };
+
+            int kpiCols = 4;
+            double kpiGap = 12;
+            double kpiBoxWidth = (contentWidth - (kpiCols - 1) * kpiGap) / kpiCols;
+            double kpiBoxHeight = 90;
+
+            for (int i = 0; i < kpis.Length; i++)
+            {
+                int row = i / kpiCols;
+                int col = i % kpiCols;
+                double bx = margin + col * (kpiBoxWidth + kpiGap);
+                double by = y + row * (kpiBoxHeight + kpiGap);
+
+                var boxRect = new XRect(bx, by, kpiBoxWidth, kpiBoxHeight);
+                gfx.DrawRoundedRectangle(XPens.Gray, XBrushes.WhiteSmoke, boxRect, new XSize(6, 6));
+                gfx.DrawString(kpis[i].Label, fontKpiLabel, XBrushes.Gray, new XRect(bx + 8, by + 10, kpiBoxWidth - 16, 16), XStringFormats.TopLeft);
+                gfx.DrawString(kpis[i].Value.ToString("N0"), fontKpiValue, kpis[i].Brush, new XRect(bx + 8, by + 32, kpiBoxWidth - 16, 40), XStringFormats.TopLeft);
+                gfx.DrawString("FCFA", fontKpiLabel, XBrushes.Gray, new XRect(bx + 8, by + 68, kpiBoxWidth - 16, 14), XStringFormats.TopLeft);
             }
 
-            y += 15;
-            gfx.DrawString("PRODUITS EN STOCK BAS", fontBold, XBrushes.Black, new XRect(margin, y, contentWidth, 15), XStringFormats.TopLeft);
-            y += 15;
-            gfx.DrawLine(XPens.Black, margin, y, pageWidth - margin, y);
-            y += 5;
-            gfx.DrawString("Référence", fontBold, XBrushes.Black, new XRect(margin, y, 100, 15), XStringFormats.TopLeft);
-            gfx.DrawString("Désignation", fontBold, XBrushes.Black, new XRect(margin + 100, y, 250, 15), XStringFormats.TopLeft);
-            gfx.DrawString("Stock", fontBold, XBrushes.Black, new XRect(margin + 350, y, 60, 15), XStringFormats.TopRight);
-            gfx.DrawString("Min", fontBold, XBrushes.Black, new XRect(margin + 410, y, 60, 15), XStringFormats.TopRight);
-            y += 12;
-            gfx.DrawLine(XPens.Gray, margin, y, pageWidth - margin, y);
-            y += 5;
+            // ---------- Pages de detail (portrait) ----------
+            NewPage(landscape: false);
+            gfx.DrawString("DÉTAIL DES OPÉRATIONS", fontSection, XBrushes.Black, new XRect(margin, y, contentWidth, 18), XStringFormats.TopLeft);
+            y += 22;
 
-            foreach (var p in lowStockProducts)
+            // Dessine une section tabulaire generique (titre + entetes + lignes), avec
+            // saut de page automatique et re-affichage des entetes de colonnes sur
+            // chaque nouvelle page pour que le tableau reste lisible partout.
+            void DrawSection<T>(string title, List<T> items, (string Header, double Width, bool Right, Func<T, string> Value)[] columns)
             {
-                gfx.DrawString(p.Reference, fontRegular, XBrushes.Black, new XRect(margin, y, 100, 15), XStringFormats.TopLeft);
-                gfx.DrawString(p.Designation, fontRegular, XBrushes.Black, new XRect(margin + 100, y, 250, 15), XStringFormats.TopLeft);
-                gfx.DrawString(p.StockQuantity.ToString("0.##"), fontRegular, XBrushes.DarkRed, new XRect(margin + 350, y, 60, 15), XStringFormats.TopRight);
-                gfx.DrawString(p.MinStock.ToString("0.##"), fontRegular, XBrushes.Black, new XRect(margin + 410, y, 60, 15), XStringFormats.TopRight);
-                y += 12;
+                EnsureSpace(45);
+                gfx.DrawString(title.ToUpper(), fontSection, XBrushes.Black, new XRect(margin, y, contentWidth, 15), XStringFormats.TopLeft);
+                y += 16;
+                gfx.DrawLine(XPens.Black, margin, y, pageWidth - margin, y);
+                y += 5;
+
+                void DrawHeaderRow()
+                {
+                    double x = margin;
+                    foreach (var c in columns)
+                    {
+                        gfx.DrawString(c.Header, fontBold, XBrushes.Black, new XRect(x, y, c.Width, 12),
+                            c.Right ? XStringFormats.TopRight : XStringFormats.TopLeft);
+                        x += c.Width;
+                    }
+                    y += 12;
+                    gfx.DrawLine(XPens.Gray, margin, y, pageWidth - margin, y);
+                    y += 4;
+                }
+
+                DrawHeaderRow();
+
+                if (items.Count == 0)
+                {
+                    gfx.DrawString("(aucune donnée)", fontRegular, XBrushes.Gray, new XRect(margin, y, contentWidth, 12), XStringFormats.TopLeft);
+                    y += 12;
+                }
+
+                foreach (var item in items)
+                {
+                    if (EnsureSpace(11))
+                        DrawHeaderRow();
+
+                    double x = margin;
+                    foreach (var c in columns)
+                    {
+                        gfx.DrawString(c.Value(item) ?? "", fontRegular, XBrushes.Black, new XRect(x, y, c.Width, 11),
+                            c.Right ? XStringFormats.TopRight : XStringFormats.TopLeft);
+                        x += c.Width;
+                    }
+                    y += 11;
+                }
+                y += 14;
             }
 
-            var docRef = $"RAP-{startDate:yyyyMMdd}-{endDate:yyyyMMdd}";
-            DrawFooterStamp(gfx, docRef, margin, pageWidth, pageHeight);
+            DrawSection("Factures impayées", unpaidInvoices, new (string, double, bool, Func<Invoice, string>)[]
+            {
+                ("N° pièce", 75, false, i => i.Number),
+                ("Date", 55, false, i => i.Date.ToString("dd/MM/yy")),
+                ("Client", 150, false, i => i.Client?.Name ?? ""),
+                ("Montant", 80, true, i => i.Total.ToString("N0")),
+                ("Acompte", 75, true, i => i.PaidAmount.ToString("N0")),
+                ("Reste", 75, true, i => i.Balance.ToString("N0")),
+                ("Statut", 35, false, i => i.Status),
+            });
+
+            DrawSection("Dépenses", expenses, new (string, double, bool, Func<Expense, string>)[]
+            {
+                ("Date", 50, false, e => e.Date.ToString("dd/MM/yy")),
+                ("Catégorie", 90, false, e => e.Category),
+                ("Description", 150, false, e => e.Description),
+                ("Fournisseur", 100, false, e => e.Supplier?.Name ?? ""),
+                ("Montant", 75, true, e => e.Amount.ToString("N0")),
+                ("Mode", 80, false, e => e.Mode),
+            });
+
+            DrawSection("Journal des règlements", payments, new (string, double, bool, Func<Payment, string>)[]
+            {
+                ("N° pièce", 75, false, p => p.Number),
+                ("Date", 55, false, p => p.Date.ToString("dd/MM/yy")),
+                ("Client", 150, false, p => p.Client?.Name ?? ""),
+                ("Mode", 90, false, p => p.Mode),
+                ("Référence", 90, false, p => p.Reference ?? ""),
+                ("Montant", 85, true, p => p.Amount.ToString("N0")),
+            });
+
+            DrawSection("Mouvements de stock", stockMovements, new (string, double, bool, Func<StockMovement, string>)[]
+            {
+                ("Date", 80, false, m => m.CreatedAt.ToString("dd/MM/yy HH:mm")),
+                ("Produit", 180, false, m => m.Product?.Designation ?? ""),
+                ("Type", 60, false, m => m.Type),
+                ("Qté", 60, true, m => m.Quantity.ToString("0.##")),
+                ("Référence", 165, false, m => m.Reference ?? ""),
+            });
+
+            DrawSection("Produits en stock bas", lowStockProducts, new (string, double, bool, Func<Product, string>)[]
+            {
+                ("Référence", 100, false, p => p.Reference),
+                ("Désignation", 250, false, p => p.Designation),
+                ("Stock", 100, true, p => p.StockQuantity.ToString("0.##")),
+                ("Min", 95, true, p => p.MinStock.ToString("0.##")),
+            });
+
+            DrawFooterStamp(gfx, $"{docRef}  •  Page {pageNumber}", margin, pageWidth, pageHeight);
 
             document.Save(filePath);
         });
