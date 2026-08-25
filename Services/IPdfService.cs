@@ -12,7 +12,9 @@ public interface IPdfService
     Task GenerateDeliveryNotePdfAsync(DeliveryNote note, string filePath);
     Task GenerateReportPdfAsync(DateTime startDate, DateTime endDate, decimal totalSales, decimal totalCashIn,
         decimal totalReceivables, decimal totalExpenses, decimal cashBalance,
-        List<StockMovement> stockMovements, List<Product> lowStockProducts, string filePath);
+        List<StockMovement> stockMovements, List<Product> lowStockProducts,
+        List<Invoice> unpaidInvoices, List<Expense> expenses, List<Payment> payments,
+        decimal cashCounted, decimal dailyGap, string filePath);
 
     // Rapport de cloture de caisse (caisse theorique / comptee / ecart) avec
     // zone de signature, pour formaliser le controle de caisse quotidien.
